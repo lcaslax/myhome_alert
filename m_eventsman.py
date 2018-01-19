@@ -51,6 +51,7 @@ except ImportError:
 DEBUG = 1                     # Debug
 CFGFILENAME = 'mhblconf.xml'  # Configuration file name
 
+tidt = []
 
 ########################
 ### CONTROLLO EVENTI ###
@@ -106,21 +107,56 @@ def ControlloEventi(msgOpen):
                 nzo = trigger.split('*')[2][0:1]
                 # Lettura temperatura
                 vt = fixtemp(trigger.split('*')[4][0:4])
+                if DEBUG == 1:
+                    print 'TEMP: Sonda interna [' + str(nzo) + '] vt [' + str(vt) + ']'
                 # Lettura ultimi dati registrati
                 try:
-                    tidt = []
+                    ###tidt = []
+                    i = 0
                     tidt = pickle.load(open("tempdata.p", "rb"))
-                    # Presenza di ultimo dato storicizzato. Confronta.
-                    if nzo == tidt[0] and vt == tidt[1]:
-                        # Valori invariati dalla precedente lettura, no trigger!
-                        exit
+                    b_writeTemp = 1;
+                    for elem in tidt:
+                        if i%2 == 0:
+                            if DEBUG == 1:
+                                print 'TEMP: Sonda interna | Precedenti valori: sonda=[' + str(tidt[i]) + ']  temp=[' + str(tidt[i+1]) + ']'
+                            if nzo == tidt[i]:
+                                if DEBUG == 1:
+                                    print 'TEMP: Sonda ' + str(nzo) + ' temp ' + str(vt)
+                                if vt == tidt[i+1]:
+                                    #temp della sonda invariata non modifico nulla
+                                    b_writeTemp = 0
+                                    exit
+                                else:
+                                    # la temp della sonda e' cambiata salvala
+                                    if DEBUG == 1:
+                                        print 'TEMP: ' + str(vt) + ' della sonda ' + str(nzo) + ' e cambiata.\' lettura precedente: ' + str(tidt[i+1])
+                                    trigger = 'TSZ' + str(nzo) 
+                                    b_writeTemp = 0
+                                    tidt[i+1] = vt
+                                    writeTemFile(tidt)  
+                        i = i + 1      
+                    # se non ho trovato la sonda nel file aggiorno il file
+                    if b_writeTemp == 1:
+                        if DEBUG == 1:
+                            print 'TEMP: Sonda ' + str(nzo) + ' non presente nel file valore salvato: ' + str(vt)
+                        trigger = 'TSZ' + str(nzo)  
+                        tidt.append(nzo)
+                        tidt.append(vt)
+                        writeTemFile(tidt)             
                 except Exception:
+                    if DEBUG == 1:
+                        print 'Errore in f.ControlloEventi! [' + str(sys.exc_info()) + '] File tempdata.p inesistente?'
                     # Nessun dato storicizzato, scrivi quello appena letto.
+                    tidt = []
                     tidt.append(nzo)
                     tidt.append(vt)
                     pickle.dump(tidt,open("tempdata.p", "wb"))
+                    #writeTemFile(tidt)
                     # OK trigger
                     trigger = 'TSZ' + str(nzo)
+                    if DEBUG == 1:
+                        print'TEMP: Sonda interna | Nessun dato storicizzato trigger =  [' + str(trigger) + ']'
+               
             else:
                 # Ignorare altre frame termoregolazione non gestite.
                 None
@@ -133,6 +169,8 @@ def ControlloEventi(msgOpen):
                 tempdta = elem.attrib['data'].split('|')
                 tempopt = tempdta[3]
                 tempval = float(tempdta[4])
+                #logobj.write('channel [' + channel + '] tempdta [' + tempdta + '] tempopt [' + tempopt + '] tempval [' + tempval + '] trigger [' + trigger + ']')
+
                 if tempopt == 'EQ':
                     # EQUAL
                     if not vt == tempval:
@@ -154,18 +192,34 @@ def ControlloEventi(msgOpen):
                     if not vt >= tempval:
                         break
                 # Lettura canale
-                channel = elem.attrib['channel']
+                #channel = elem.attrib['channel']
             # Controlla stato del canale
             status = ET.parse(CFGFILENAME).find("channels/channel[@type='" + channel + "']").attrib['enabled']
             if status == "Y":
+                # Inseriti valori dinamici nella stringa
                 data = elem.attrib['data']
+                s_temp = data.split("|");
+                testoDaInviare = s_temp[1]
+                
+                #se temperatura preparo il testo da inviare 
+                if trigger.startswith('TS'):                     
+                    nomeSonda = str(nzo)
+                    try:
+                        cfg_sonda = ET.parse(CFGFILENAME).find("sondeTemp/sonda[@type='" + str(nzo) + "']")
+                        nomeSonda = cfg_sonda.attrib['data']
+                    except Exception, err:
+                        if DEBUG == 1:
+                            print 'Non trovato sondeTemp e sonda nel file config'
+                    testoDaInviare = str(s_temp[1]) + ' | Sonda ' + str(nomeSonda) + ' indica ' + str(vt) + ' gradi '
+                
+                                
                 # Trovato evento, verifica come reagire.
                 if channel == 'POV':
                     # ***********************************************************
                     # ** Pushover channel                                      **
                     # ***********************************************************
                     povdata = data.split('|')
-                    if pushover_service(povdata[1]) == True:
+                    if pushover_service(testoDaInviare) == True:
                         logobj.write('Inviato messaggio pushover a seguito di evento ' + trigger)
                     else:
                         logobj.write('Errore invio messaggio pushover a seguito di evento ' + trigger)
@@ -183,7 +237,7 @@ def ControlloEventi(msgOpen):
                     # ** Twitter channel                                       **
                     # ***********************************************************
                     twtdata = data.split('|')
-                    if twitter_service(twtdata[0],twtdata[1]) == True:
+                    if twitter_service(twtdata[0],testoDaInviare) == True:
                         logobj.write('Inviato tweet a ' + twtdata[0] + ' a seguito di evento ' + trigger)
                     else:
                         logobj.write('Errore invio tweet a seguito di evento ' + trigger)
@@ -192,10 +246,13 @@ def ControlloEventi(msgOpen):
                     # ** e-mail channel                                        **
                     # ***********************************************************
                     emldata = data.split('|')
-                    if email_service(emldata[0],'mhbus_listener alert',emldata[1]) == True:
-                        logobj.write('Inviata/e e-mail a ' + emldata[0] + ' a seguito di evento ' + trigger)
+                    if DEBUG == 1:
+                        print 'Tentativo invio email [' + str(emldata[0]) + '] con testo ' + testoDaInviare 
+                    
+                    if email_service(emldata[0],'mhbus_listener alert',testoDaInviare) == True:
+                        logobj.write('Inviata/e e-mail a ' + str(emldata[0]) + ' a seguito di evento ' + trigger)
                     else:
-                        logobj.write('Errore invio e-mail a seguito di evento ' + trigger)
+                        logobj.write('Errore invio e-mail a ' + str(emldata[0]) + ' a seguito di evento ' + trigger)
                 elif channel == 'BUS':
                     # ***********************************************************
                     # ** SCS-BUS channel                                       **
@@ -232,8 +289,8 @@ def ControlloEventi(msgOpen):
                 logobj.write('Alert non gestito causa canale <' + channel + '> non abilitato!')
     except Exception, err:
         if DEBUG == 1:
-            print 'Errore in f.ControlloEventi! [' + str(sys.exc_info()[0]) + ']'
-        logobj.write('Errore in f.ControlloEventi! [' + str(sys.exc_info()[0]) + ']')
+            print 'Errore in f.ControlloEventi! [' + str(sys.exc_info()) + ']'
+        logobj.write('Errore in f.ControlloEventi! [' + str(sys.exc_info()) + ']')
 
 
 def pushover_service(pomsg):
@@ -354,6 +411,7 @@ def email_service(emldest,emlobj,emltext):
             bOK = False
     except Exception, err:
         bOK = False
+        print 'Errore in invio email! [' + str(sys.exc_info()) + ']'
     finally:
         return bOK
 
@@ -432,3 +490,9 @@ def fixtemp(vt):
         vt = 999
     # Mostra temperatura
     return vt/10
+
+
+def writeTemFile(tidt):
+    print 'scrivo ' + str(tidt)
+    pickle.dump(tidt,open("tempdata.p", "wb"))
+    
