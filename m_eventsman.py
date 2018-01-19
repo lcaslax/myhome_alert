@@ -160,6 +160,51 @@ def ControlloEventi(msgOpen):
             else:
                 # Ignorare altre frame termoregolazione non gestite.
                 None
+        
+        if trigger.startswith('*#18*'):
+            if trigger.split('*')[3] == '113':
+                # Numero toroide
+                nto = int(trigger.split('*')[2][-1])
+                #print nto
+                # Lettura dati energia
+                vto = trigger.split('*')[4]
+                vto = vto[:-2]
+                #print vto
+                # Trigger
+                trigger = 'TE5' + str(nto)
+                #print trigger
+            elif (trigger.split('*')[3][:3]) == '511' and trigger.split('*')[4] == '25':
+                # Numero toroide
+                nto = int(trigger.split('*')[2][-1])
+                #print nto
+                # Lettura dati energia
+                vto = fixener(trigger.split('*')[5])
+                trigger = 'TE4' + str(nto)
+                #print trigger
+            elif trigger.split('*')[3][:2] == '52':
+                # Numero toroide
+                nto = int(trigger.split('*')[2][-1])
+                #print nto
+                # Lettura dati energia
+                vto = fixener(trigger.split('*')[4])
+                trigger = 'TE3' + str(nto)
+                #print trigger
+            elif trigger.split('*')[3] == '53':
+                # Numero toroide
+                nto = int(trigger.split('*')[2][-1])
+                #print nto
+                # Lettura dati energia
+                vto = fixener(trigger.split('*')[4])
+                trigger = 'TE2' + str(nto)
+                #print trigger
+                # Lettura parametri trigger
+            else:
+                # Altre frame energia non gestite
+                None
+                # Lettura canale
+                #channel = elem.attrib['channel']
+        
+                
         # Cerca trigger evento legato alla frame open ricevuta.
         for elem in ET.parse(CFGFILENAME).iterfind("alerts/alert[@trigger='" + trigger + "']"):
             # Estrai canale
@@ -191,8 +236,7 @@ def ControlloEventi(msgOpen):
                     # GREATER OR EQUAL
                     if not vt >= tempval:
                         break
-                # Lettura canale
-                #channel = elem.attrib['channel']
+        
             # Controlla stato del canale
             status = ET.parse(CFGFILENAME).find("channels/channel[@type='" + channel + "']").attrib['enabled']
             if status == "Y":
@@ -495,4 +539,29 @@ def fixtemp(vt):
 def writeTemFile(tidt):
     print 'scrivo ' + str(tidt)
     pickle.dump(tidt,open("tempdata.p", "wb"))
+
+def fixener(vto):
+   # Adatta il formato di energia
+   vto = vto[:-2]
+   vto = float(vto)
+   vto = round(vto/1000,2)
+   vto = str(vto)
+   vto = vto.replace(".",",")
+   return vto
+
+def ifttt_service(trigger,iftext):
+    bOK = True
+    try:
+        # Lettura parametri IFT  da file di configurazione
+        IFT_address = ET.parse(CFGFILENAME).find("channels/channel[@type='IFT']").attrib['address']
+        ckey = ET.parse(CFGFILENAME).find("channels/channel[@type='IFT']").attrib['ckey']
+        if DEBUG == 1:
+            print trigger
+        url = IFT_address.format(e=trigger,k=ckey)
+        payload = {'value1': iftext}
+        return requests.post(url, data=payload)
+    except:
+        bOK = False
+    finally:
+        return bOK
     
