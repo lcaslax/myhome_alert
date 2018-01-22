@@ -137,10 +137,13 @@ def main():
                                                             # Reset lista af
                                                             afframes = []
                                                     # Controllo eventi...
-                                                    EvMan.ControlloEventi(msgOpen)
+                                                    EvMan.ControlloEventi(msgOpen, logobj)
                                 else:
                                     # Frame non riconosciuta!
                                     logobj.write(msgOpen + ' [STRINGA OPENWEBNET NON RICONOSCIUTA!]')
+                            else:
+                                # Non ricevo piu' nulla!
+                                logobj.write(str(frames) + ' - ' + str(smon))
                     else:
                         # KO, non e' stato possibile attivare la modalita' MONITOR, impossibile proseguire.
                         logobj.write('IL GATEWAY ' + mhgateway_ip + ' HA RIFIUTATO LA MODALITA'' MONITOR. ARRIVEDERCI!')
@@ -161,7 +164,7 @@ def main():
     except Exception, err:
         if DEBUG == 1:
             print 'Errore in f.main! [' + str(sys.stderr.write('ERROR: %s\n' % str(err))) + ']'
-        logobj.write('Errore in f.main! [' + str(sys.stderr.write('ERROR: %s\n' % str(err))) + ']')
+        #logobj.write('Errore in f.main! [' + str(sys.stderr.write('ERROR: %s\n' % str(err))) + ']')
 
 
 def ExitApp():

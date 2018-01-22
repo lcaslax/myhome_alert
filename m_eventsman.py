@@ -57,154 +57,18 @@ tidt = []
 ### CONTROLLO EVENTI ###
 ########################
 
-def ControlloEventi(msgOpen):
+def ControlloEventi(msgOpen, logobj):
     # GESTIONE EVENTI E AZIONI #
     trigger = msgOpen
     try:
         # Lettura percorso e nome del file di log.
-        flog = ET.parse(CFGFILENAME).find("log[@file]").attrib['file']
-        logtype = ET.parse(CFGFILENAME).find("log[@file]").attrib['type']
-        logobj = Log(flog,logtype)
+
         # Se CHI=4 estrazione dati di temperatura.
         if trigger.startswith('*#4*'):
-            ####################################################################
-            # Recupero precedenti valori di temperatura memorizzati.
-            # Se non disponibili e' prima volta. L'informazione della
-            # temperatura viene inviata dalle sonde sul bus ogni 15 minuti.
-            # L'ultimo valore di temp. viene storicizzato e confrontato con
-            # la successiva lettura, questo perche' il trigger deve scattare
-            # una sola volta finche' la condizione rimane VERA.
-            ####################################################################
-            # Lettura sonde
-            if trigger.split('*')[3] == '15':
-                #################
-                # Sonda esterna #
-                #################
-                # Numero sonda
-                nso = int(trigger.split('*')[2][0:1])
-                # Lettura temperatura
-                vt = fixtemp(trigger.split('*')[5][0:4])
-                # Lettura ultimi dati registrati
-                try:
-                    tedt = []
-                    tedt = pickle.load(open("tempdata.p", "rb"))
-                    # Presenza di ultimo dato storicizzato. Confronta.
-                    if nso == tedt[0] and vt == tedt[1]:
-                        # Valori invariati dalla precedente lettura, no trigger!
-                        exit
-                except Exception:
-                    # Nessun dato storicizzato, scrivi quello appena letto.
-                    tedt.append(nso)
-                    tedt.append(vt)
-                    pickle.dump(tedt,open("tempdata.p", "wb"))
-                    # OK trigger
-                    trigger = 'TSE' + str(nso)
-            elif trigger.split('*')[3] == '0':
-                #################
-                # Sonda interna #
-                #################
-                # Numero zona
-                nzo = trigger.split('*')[2][0:1]
-                # Lettura temperatura
-                vt = fixtemp(trigger.split('*')[4][0:4])
-                if DEBUG == 1:
-                    print 'TEMP: Sonda interna [' + str(nzo) + '] vt [' + str(vt) + ']'
-                # Lettura ultimi dati registrati
-                try:
-                    ###tidt = []
-                    i = 0
-                    tidt = pickle.load(open("tempdata.p", "rb"))
-                    b_writeTemp = 1;
-                    for elem in tidt:
-                        if i%2 == 0:
-                            if DEBUG == 1:
-                                print 'TEMP: Sonda interna | Precedenti valori: sonda=[' + str(tidt[i]) + ']  temp=[' + str(tidt[i+1]) + ']'
-                            if nzo == tidt[i]:
-                                if DEBUG == 1:
-                                    print 'TEMP: Sonda ' + str(nzo) + ' temp ' + str(vt)
-                                if vt == tidt[i+1]:
-                                    #temp della sonda invariata non modifico nulla
-                                    b_writeTemp = 0
-                                    exit
-                                else:
-                                    # la temp della sonda e' cambiata salvala
-                                    if DEBUG == 1:
-                                        print 'TEMP: ' + str(vt) + ' della sonda ' + str(nzo) + ' e cambiata.\' lettura precedente: ' + str(tidt[i+1])
-                                    trigger = 'TSZ' + str(nzo) 
-                                    b_writeTemp = 0
-                                    tidt[i+1] = vt
-                                    writeTemFile(tidt)  
-                        i = i + 1      
-                    # se non ho trovato la sonda nel file aggiorno il file
-                    if b_writeTemp == 1:
-                        if DEBUG == 1:
-                            print 'TEMP: Sonda ' + str(nzo) + ' non presente nel file valore salvato: ' + str(vt)
-                        trigger = 'TSZ' + str(nzo)  
-                        tidt.append(nzo)
-                        tidt.append(vt)
-                        writeTemFile(tidt)             
-                except Exception:
-                    if DEBUG == 1:
-                        print 'Errore in f.ControlloEventi! [' + str(sys.exc_info()) + '] File tempdata.p inesistente?'
-                    # Nessun dato storicizzato, scrivi quello appena letto.
-                    tidt = []
-                    tidt.append(nzo)
-                    tidt.append(vt)
-                    pickle.dump(tidt,open("tempdata.p", "wb"))
-                    #writeTemFile(tidt)
-                    # OK trigger
-                    trigger = 'TSZ' + str(nzo)
-                    if DEBUG == 1:
-                        print'TEMP: Sonda interna | Nessun dato storicizzato trigger =  [' + str(trigger) + ']'
-               
-            else:
-                # Ignorare altre frame termoregolazione non gestite.
-                None
-        
-        if trigger.startswith('*#18*'):
-            if trigger.split('*')[3] == '113':
-                # Numero toroide
-                nto = int(trigger.split('*')[2][-1])
-                #print nto
-                # Lettura dati energia
-                vto = trigger.split('*')[4]
-                vto = vto[:-2]
-                #print vto
-                # Trigger
-                trigger = 'TE5' + str(nto)
-                #print trigger
-            elif (trigger.split('*')[3][:3]) == '511' and trigger.split('*')[4] == '25':
-                # Numero toroide
-                nto = int(trigger.split('*')[2][-1])
-                #print nto
-                # Lettura dati energia
-                vto = fixener(trigger.split('*')[5])
-                trigger = 'TE4' + str(nto)
-                #print trigger
-            elif trigger.split('*')[3][:2] == '52':
-                # Numero toroide
-                nto = int(trigger.split('*')[2][-1])
-                #print nto
-                # Lettura dati energia
-                vto = fixener(trigger.split('*')[4])
-                trigger = 'TE3' + str(nto)
-                #print trigger
-            elif trigger.split('*')[3] == '53':
-                # Numero toroide
-                nto = int(trigger.split('*')[2][-1])
-                #print nto
-                # Lettura dati energia
-                vto = fixener(trigger.split('*')[4])
-                trigger = 'TE2' + str(nto)
-                #print trigger
-                # Lettura parametri trigger
-            else:
-                # Altre frame energia non gestite
-                None
-                # Lettura canale
-                #channel = elem.attrib['channel']
-        
-                
+            trigger, nzo, vt = gestioneTermo(trigger)
+        elif trigger.startswith('*#18*'):
+            trigger, nto, vto  = gestioneEnergia(trigger)
+            
         # Cerca trigger evento legato alla frame open ricevuta.
         for elem in ET.parse(CFGFILENAME).iterfind("alerts/alert[@trigger='" + trigger + "']"):
             # Estrai canale
@@ -212,8 +76,8 @@ def ControlloEventi(msgOpen):
             # Se trigger di temperatura estrai parametri e verificali
             if trigger.startswith('TS'):
                 tempdta = elem.attrib['data'].split('|')
-                tempopt = tempdta[3]
-                tempval = float(tempdta[4])
+                tempopt = tempdta[1]
+                tempval = float(tempdta[2])
                 #logobj.write('channel [' + channel + '] tempdta [' + tempdta + '] tempopt [' + tempopt + '] tempval [' + tempval + '] trigger [' + trigger + ']')
 
                 if tempopt == 'EQ':
@@ -236,99 +100,67 @@ def ControlloEventi(msgOpen):
                     # GREATER OR EQUAL
                     if not vt >= tempval:
                         break
-        
+            #- TE5x energia istantanea (x e' il toroide)
+            #- TE4x energia del giorno precedente
+            #- TE3x energia mese precedente        
+            elif trigger.startswith('TE5'):
+                enerdta = elem.attrib['data'].split('|')
+                eneropt = enerdta[1]
+                enerval = float(enerdta[2])
+                #logobj.write('channel [' + channel + '] tempdta [' + tempdta + '] tempopt [' + tempopt + '] tempval [' + tempval + '] trigger [' + trigger + ']')
+
+                if eneropt == 'EQ':
+                    # EQUAL
+                    if not vto == enerval:
+                        break
+                elif eneropt == 'LS':
+                    # LESS THAN
+                    if not vto < enerval:
+                        break
+                elif eneropt == 'LE':
+                    # LESS OR EQUAL
+                    if not vto <= enerval:
+                        break
+                elif eneropt == 'GR':
+                    # GREATER THAN
+                    if not vto > enerval:
+                        break
+                elif eneropt == 'GE':
+                    # GREATER OR EQUAL
+                    if not vto >= enerval:
+                        break    
+
             # Controlla stato del canale
             status = ET.parse(CFGFILENAME).find("channels/channel[@type='" + channel + "']").attrib['enabled']
             if status == "Y":
                 # Inseriti valori dinamici nella stringa
                 data = elem.attrib['data']
                 s_temp = data.split("|");
-                testoDaInviare = s_temp[1]
+                testoDaInviare = s_temp[0]
                 
                 #se temperatura preparo il testo da inviare 
                 if trigger.startswith('TS'):                     
                     nomeSonda = str(nzo)
                     try:
+                        testoDaInviare = testoDaInviare.replace('{temp}', str(vt))  
+                    except Exception, err:
+                        if DEBUG == 1:
+                            print 'Non trovato temp da parsificare nel file config'
+                    try:
                         cfg_sonda = ET.parse(CFGFILENAME).find("sondeTemp/sonda[@type='" + str(nzo) + "']")
                         nomeSonda = cfg_sonda.attrib['data']
+                        testoDaInviare = testoDaInviare.replace('{sonda}', str(nomeSonda))     
+                        
+                        #testoDaInviare = str(s_temp[1]) + ' | Sonda ' + str(nomeSonda) + ' indica ' + str(vt) + ' gradi '
                     except Exception, err:
                         if DEBUG == 1:
                             print 'Non trovato sondeTemp e sonda nel file config'
-                    testoDaInviare = str(s_temp[1]) + ' | Sonda ' + str(nomeSonda) + ' indica ' + str(vt) + ' gradi '
-                
-                                
-                # Trovato evento, verifica come reagire.
-                if channel == 'POV':
-                    # ***********************************************************
-                    # ** Pushover channel                                      **
-                    # ***********************************************************
-                    povdata = data.split('|')
-                    if pushover_service(testoDaInviare) == True:
-                        logobj.write('Inviato messaggio pushover a seguito di evento ' + trigger)
-                    else:
-                        logobj.write('Errore invio messaggio pushover a seguito di evento ' + trigger)
-                elif channel == 'SMS':
-                    # ***********************************************************
-                    # ** SMS channel (a GSM phone is required on RS-232)       **
-                    # ***********************************************************
-                    smsdata = data.split('|')
-                    if sms_service(smsdata[0],smsdata[1]) == True:
-                        logobj.write('Inviato/i SMS a ' + smsdata[0] + ' a seguito di evento ' + trigger)
-                    else:
-                        logobj.write('Errore invio SMS a seguito di evento ' + trigger)
-                elif channel == 'TWT':
-                    # ***********************************************************
-                    # ** Twitter channel                                       **
-                    # ***********************************************************
-                    twtdata = data.split('|')
-                    if twitter_service(twtdata[0],testoDaInviare) == True:
-                        logobj.write('Inviato tweet a ' + twtdata[0] + ' a seguito di evento ' + trigger)
-                    else:
-                        logobj.write('Errore invio tweet a seguito di evento ' + trigger)
-                elif channel == 'EML':
-                    # ***********************************************************
-                    # ** e-mail channel                                        **
-                    # ***********************************************************
-                    emldata = data.split('|')
+                elif trigger.startswith('TE'):
+                    testoDaInviare = testoDaInviare + vto         ######## mod andrea
                     if DEBUG == 1:
-                        print 'Tentativo invio email [' + str(emldata[0]) + '] con testo ' + testoDaInviare 
-                    
-                    if email_service(emldata[0],'mhbus_listener alert',testoDaInviare) == True:
-                        logobj.write('Inviata/e e-mail a ' + str(emldata[0]) + ' a seguito di evento ' + trigger)
-                    else:
-                        logobj.write('Errore invio e-mail a ' + str(emldata[0]) + ' a seguito di evento ' + trigger)
-                elif channel == 'BUS':
-                    # ***********************************************************
-                    # ** SCS-BUS channel                                       **
-                    # ***********************************************************
-                    busdata = data.split('|')
-                    if opencmd_service(busdata[0]) == True:
-                        logobj.write('Eseguito/i comando/i OPEN preimpostato/i a seguito di evento ' + trigger)
-                    else:
-                        logobj.write('Errore esecuzione comando/i OPEN preimpostato/i a seguito di evento ' + trigger)
-                elif channel == 'OSE':
-                    # ***********************************************************
-                    # ** Open.sen.se channel                                   **
-                    # ***********************************************************
-                    osedata = data.split('|')
-                    osefeedid = osedata[0]
-                    osevalue = osedata[1]
-                    if send_to_opensense(osefeedid,osevalue) == True:
-                        logobj.write('Inviato dato a piattaforma Open.Sen.Se (feed id:' + osefeedid + ', valore:' + osevalue + ') a seguito di evento ' + trigger)
-                    else:
-                        logobj.write('Errore invio dato a piattaforma Open.Sen.Se (feed id:' + osefeedid + ', valore:' + osevalue + ') a seguito di evento ' + trigger)
-                elif channel == 'BAT':
-                    # ***********************************************************
-                    # ** Batch channel                                         **
-                    # ***********************************************************
-                    busdata = data.split('|')
-                    if batch_service(busdata[0]) == True:
-                        logobj.write('Eseguito batch a seguito di evento ' + trigger)
-                    else:
-                        logobj.write('Errore esecuzione batch a seguito di evento ' + trigger)
-                else:
-                    # Error
-                    logobj.write('Canale di notifica non riconosciuto! [' + action + ']')
+                        print testoDaInviare 
+                # Trovato evento, verifica come reagire.
+                invioNotifiche(data, channel, trigger, testoDaInviare, logobj)
             else:
                 logobj.write('Alert non gestito causa canale <' + channel + '> non abilitato!')
     except Exception, err:
@@ -336,6 +168,227 @@ def ControlloEventi(msgOpen):
             print 'Errore in f.ControlloEventi! [' + str(sys.exc_info()) + ']'
         logobj.write('Errore in f.ControlloEventi! [' + str(sys.exc_info()) + ']')
 
+#Routine per la gestione Termo
+def gestioneTermo(trigger):
+    ####################################################################
+    # Recupero precedenti valori di temperatura memorizzati.
+    # Se non disponibili e' prima volta. L'informazione della
+    # temperatura viene inviata dalle sonde sul bus ogni 15 minuti.
+    # L'ultimo valore di temp. viene storicizzato e confrontato con
+    # la successiva lettura, questo perche' il trigger deve scattare
+    # una sola volta finche' la condizione rimane VERA.
+    ####################################################################
+    # Lettura sonde
+    nzo = 0
+    vt = float(0.0)
+    if trigger.split('*')[3] == '15':
+        #################
+        # Sonda esterna #
+        #################
+        # Numero sonda
+        nzo = int(trigger.split('*')[2][0:1])
+        # Lettura temperatura
+        vt = fixtemp(trigger.split('*')[5][0:4])
+        # Lettura ultimi dati registrati
+        try:
+            tedt = []
+            tedt = pickle.load(open("tempdata.p", "rb"))
+            # Presenza di ultimo dato storicizzato. Confronta.
+            if nzo == tedt[0] and vt == tedt[1]:
+                # Valori invariati dalla precedente lettura, no trigger!
+                exit
+        except Exception:
+            # Nessun dato storicizzato, scrivi quello appena letto.
+            tedt.append(nzo)
+            tedt.append(vt)
+            pickle.dump(tedt,open("tempdata.p", "wb"))
+            # OK trigger
+            trigger = 'TSE' + str(nzo)
+    elif trigger.split('*')[3] == '0':
+        #################
+        # Sonda interna #
+        #################
+        # Numero zona
+        nzo = trigger.split('*')[2][0:1]
+        # Lettura temperatura
+        vt = fixtemp(trigger.split('*')[4][0:4])
+        if DEBUG == 1:
+            print 'TEMP: Sonda interna [' + str(nzo) + '] vt [' + str(vt) + ']'
+        # Lettura ultimi dati registrati
+        try:
+            ###tidt = []
+            i = 0
+            tidt = pickle.load(open("tempdata.p", "rb"))
+            b_writeTemp = 1;
+            for elem in tidt:
+                if i%2 == 0:
+                    if DEBUG == 1:
+                        print 'TEMP: Sonda interna | Precedenti valori: sonda=[' + str(tidt[i]) + ']  temp=[' + str(tidt[i+1]) + ']'
+                    if nzo == tidt[i]:
+                        if DEBUG == 1:
+                            print 'TEMP: Sonda ' + str(nzo) + ' temp ' + str(vt)
+                        if vt == tidt[i+1]:
+                            #temp della sonda invariata non modifico nulla
+                            b_writeTemp = 0
+                            exit
+                        else:
+                            # la temp della sonda e' cambiata salvala
+                            if DEBUG == 1:
+                                print 'TEMP: ' + str(vt) + ' della sonda ' + str(nzo) + ' e cambiata.\' lettura precedente: ' + str(tidt[i+1])
+                            trigger = 'TSZ' + str(nzo) 
+                            b_writeTemp = 0
+                            tidt[i+1] = vt
+                            writeTemFile(tidt)  
+                i = i + 1      
+            # se non ho trovato la sonda nel file aggiorno il file
+            if b_writeTemp == 1:
+                if DEBUG == 1:
+                    print 'TEMP: Sonda ' + str(nzo) + ' non presente nel file valore salvato: ' + str(vt)
+                trigger = 'TSZ' + str(nzo)  
+                tidt.append(nzo)
+                tidt.append(vt)
+                writeTemFile(tidt)             
+        except Exception:
+            if DEBUG == 1:
+                print 'Errore in f.ControlloEventi! [' + str(sys.exc_info()) + '] File tempdata.p inesistente?'
+            # Nessun dato storicizzato, scrivi quello appena letto.
+            tidt = []
+            tidt.append(nzo)
+            tidt.append(vt)
+            pickle.dump(tidt,open("tempdata.p", "wb"))
+            #writeTemFile(tidt)
+            # OK trigger
+            trigger = 'TSZ' + str(nzo)
+            if DEBUG == 1:
+                print'TEMP: Sonda interna | Nessun dato storicizzato trigger =  [' + str(trigger) + ']'
+    else:
+        # Ignorare altre frame termoregolazione non gestite.
+        None
+    return trigger, nzo, vt
+
+
+#Routine per la gestione dell'energia
+def gestioneEnergia(trigger):
+    nto = 0
+    vto = float(0.0)
+    if trigger.split('*')[3] == '113':
+        # Numero toroide
+        nto = int(trigger.split('*')[2][-1])
+        #print nto
+        # Lettura dati energia
+        vto = trigger.split('*')[4]
+        vto = vto[:-2]
+        #print vto
+        # Trigger
+        trigger = 'TE5' + str(nto)
+        #print trigger
+    elif (trigger.split('*')[3][:3]) == '511' and trigger.split('*')[4] == '25':
+        # Numero toroide
+        nto = int(trigger.split('*')[2][-1])
+        #print nto
+        # Lettura dati energia
+        vto = fixener(trigger.split('*')[5])
+        trigger = 'TE4' + str(nto)
+        #print trigger
+    elif trigger.split('*')[3][:2] == '52':
+        # Numero toroide
+        nto = int(trigger.split('*')[2][-1])
+        #print nto
+        # Lettura dati energia
+        vto = fixener(trigger.split('*')[4])
+        trigger = 'TE3' + str(nto)
+        #print trigger
+    elif trigger.split('*')[3] == '53':
+        # Numero toroide
+        nto = int(trigger.split('*')[2][-1])
+        #print nto
+        # Lettura dati energia
+        vto = fixener(trigger.split('*')[4])
+        trigger = 'TE2' + str(nto)
+        #print trigger
+        # Lettura parametri trigger
+    else:
+        # Altre frame energia non gestite
+        None
+        # Lettura canale
+        #channel = elem.attrib['channel']
+    return trigger, nto, vto   
+    
+
+#invio notifiche
+def invioNotifiche(data, channel, trigger, testoDaInviare, logobj):
+    if channel == 'POV':
+        # ***********************************************************
+        # ** Pushover channel                                      **
+        # ***********************************************************
+        povdata = data.split('|')
+        if pushover_service(testoDaInviare) == True:
+            logobj.write('Inviato messaggio pushover a seguito di evento ' + trigger)
+        else:
+            logobj.write('Errore invio messaggio pushover a seguito di evento ' + trigger)
+    elif channel == 'SMS':
+        # ***********************************************************
+        # ** SMS channel (a GSM phone is required on RS-232)       **
+        # ***********************************************************
+        smsdata = data.split('|')
+        if sms_service(smsdata[0],smsdata[1]) == True:
+            logobj.write('Inviato/i SMS a ' + smsdata[0] + ' a seguito di evento ' + trigger)
+        else:
+            logobj.write('Errore invio SMS a seguito di evento ' + trigger)
+    elif channel == 'TWT':
+        # ***********************************************************
+        # ** Twitter channel                                       **
+        # ***********************************************************
+        twtdata = data.split('|')
+        if twitter_service(twtdata[0],testoDaInviare) == True:
+            logobj.write('Inviato tweet a ' + twtdata[0] + ' a seguito di evento ' + trigger)
+        else:
+            logobj.write('Errore invio tweet a seguito di evento ' + trigger)
+    elif channel == 'EML':
+        # ***********************************************************
+        # ** e-mail channel                                        **
+        # ***********************************************************
+        emldata = data.split('|')
+        if DEBUG == 1:
+            print 'Tentativo invio email [' + str(emldata[0]) + '] con testo ' + testoDaInviare 
+        
+        if email_service(emldata[0],'mhbus_listener alert',testoDaInviare) == True:
+            logobj.write('Inviata/e e-mail a ' + str(emldata[0]) + ' a seguito di evento ' + trigger)
+        else:
+            logobj.write('Errore invio e-mail a ' + str(emldata[0]) + ' a seguito di evento ' + trigger)
+    elif channel == 'BUS':
+        # ***********************************************************
+        # ** SCS-BUS channel                                       **
+        # ***********************************************************
+        busdata = data.split('|')
+        if opencmd_service(busdata[0]) == True:
+            logobj.write('Eseguito/i comando/i OPEN preimpostato/i a seguito di evento ' + trigger)
+        else:
+            logobj.write('Errore esecuzione comando/i OPEN preimpostato/i a seguito di evento ' + trigger)
+    elif channel == 'OSE':
+        # ***********************************************************
+        # ** Open.sen.se channel                                   **
+        # ***********************************************************
+        osedata = data.split('|')
+        osefeedid = osedata[0]
+        osevalue = osedata[1]
+        if send_to_opensense(osefeedid,osevalue) == True:
+            logobj.write('Inviato dato a piattaforma Open.Sen.Se (feed id:' + osefeedid + ', valore:' + osevalue + ') a seguito di evento ' + trigger)
+        else:
+            logobj.write('Errore invio dato a piattaforma Open.Sen.Se (feed id:' + osefeedid + ', valore:' + osevalue + ') a seguito di evento ' + trigger)
+    elif channel == 'BAT':
+        # ***********************************************************
+        # ** Batch channel                                         **
+        # ***********************************************************
+        busdata = data.split('|')
+        if batch_service(busdata[0]) == True:
+            logobj.write('Eseguito batch a seguito di evento ' + trigger)
+        else:
+            logobj.write('Errore esecuzione batch a seguito di evento ' + trigger)
+    else:
+        # Error
+        logobj.write('Canale di notifica non riconosciuto! [' + action + ']')
+        
 
 def pushover_service(pomsg):
     bOK = True
