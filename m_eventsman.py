@@ -30,6 +30,7 @@ import httplib, urllib
 import cPickle as pickle
 import json as simplejson
 import xml.etree.ElementTree as ET
+import requests
 from cl_log import Log
 from cl_btbus import MyHome
 from cl_email import EmailSender
@@ -78,7 +79,7 @@ def ControlloEventi(msgOpen, logobj):
                 tempdta = elem.attrib['data'].split('|')
                 tempopt = tempdta[1]
                 tempval = float(tempdta[2])
-                #logobj.write('channel [' + channel + '] tempdta [' + tempdta + '] tempopt [' + tempopt + '] tempval [' + tempval + '] trigger [' + trigger + ']')
+                #logobj.write('TS: channel [' + channel + '] tempdta [' + tempdta + '] tempopt [' + tempopt + '] tempval [' + tempval + '] trigger [' + trigger + ']')
 
                 if tempopt == 'EQ':
                     # EQUAL
@@ -107,7 +108,7 @@ def ControlloEventi(msgOpen, logobj):
                 enerdta = elem.attrib['data'].split('|')
                 eneropt = enerdta[1]
                 enerval = float(enerdta[2])
-                #logobj.write('channel [' + channel + '] tempdta [' + tempdta + '] tempopt [' + tempopt + '] tempval [' + tempval + '] trigger [' + trigger + ']')
+                #logobj.write('TE5: channel [' + channel + '] tempdta [' + tempdta + '] tempopt [' + tempopt + '] tempval [' + tempval + '] trigger [' + trigger + ']')
 
                 if eneropt == 'EQ':
                     # EQUAL
@@ -150,15 +151,17 @@ def ControlloEventi(msgOpen, logobj):
                         cfg_sonda = ET.parse(CFGFILENAME).find("sondeTemp/sonda[@type='" + str(nzo) + "']")
                         nomeSonda = cfg_sonda.attrib['data']
                         testoDaInviare = testoDaInviare.replace('{sonda}', str(nomeSonda))     
-                        
                         #testoDaInviare = str(s_temp[1]) + ' | Sonda ' + str(nomeSonda) + ' indica ' + str(vt) + ' gradi '
                     except Exception, err:
                         if DEBUG == 1:
                             print 'Non trovato sondeTemp e sonda nel file config'
-                elif trigger.startswith('TE'):
-                    testoDaInviare = testoDaInviare + vto         ######## mod andrea
                     if DEBUG == 1:
-                        print testoDaInviare 
+                        print 'TEMP sending: ' + testoDaInviare
+                #se energia preparo il testo da inviare
+                elif trigger.startswith('TE'):
+                    testoDaInviare = testoDaInviare + str(vto)         ######## mod andrea
+                    if DEBUG == 1:
+                        print 'EN sending: ' + testoDaInviare 
                 # Trovato evento, verifica come reagire.
                 invioNotifiche(data, channel, trigger, testoDaInviare, logobj)
             else:
@@ -213,7 +216,7 @@ def gestioneTermo(trigger):
         # Lettura temperatura
         vt = fixtemp(trigger.split('*')[4][0:4])
         if DEBUG == 1:
-            print 'TEMP: Sonda interna [' + str(nzo) + '] vt [' + str(vt) + ']'
+            print 'TEMP: Sonda interna [' + str(nzo) + '] rilevata temp  [' + str(vt) + ']'
         # Lettura ultimi dati registrati
         try:
             ###tidt = []
@@ -225,8 +228,6 @@ def gestioneTermo(trigger):
                     if DEBUG == 1:
                         print 'TEMP: Sonda interna | Precedenti valori: sonda=[' + str(tidt[i]) + ']  temp=[' + str(tidt[i+1]) + ']'
                     if nzo == tidt[i]:
-                        if DEBUG == 1:
-                            print 'TEMP: Sonda ' + str(nzo) + ' temp ' + str(vt)
                         if vt == tidt[i+1]:
                             #temp della sonda invariata non modifico nulla
                             b_writeTemp = 0
@@ -353,7 +354,7 @@ def invioNotifiche(data, channel, trigger, testoDaInviare, logobj):
             print 'Tentativo invio email [' + str(emldata[0]) + '] con testo ' + testoDaInviare 
         
         if email_service(emldata[0],'mhbus_listener alert',testoDaInviare) == True:
-            logobj.write('Inviata/e e-mail a ' + str(emldata[0]) + ' a seguito di evento ' + trigger)
+            logobj.write('Inviata/e e-mail a ' + str(emldata[0]) +  ' a seguito di evento ' + trigger)
         else:
             logobj.write('Errore invio e-mail a ' + str(emldata[0]) + ' a seguito di evento ' + trigger)
     elif channel == 'BUS':
@@ -385,9 +386,20 @@ def invioNotifiche(data, channel, trigger, testoDaInviare, logobj):
             logobj.write('Eseguito batch a seguito di evento ' + trigger)
         else:
             logobj.write('Errore esecuzione batch a seguito di evento ' + trigger)
+    elif channel == 'IFT':
+        # ***********************************************************
+        # ** INVIO ALERT TRAMITE IFTT                              **
+        # ***********************************************************
+        iftdata = data.split('|')
+        if ifttt_service(iftdata[0],iftdata[1]) == True:
+           logobj.write('Inviato Ifttt a ' + iftdata[0] + ' a seguito di evento ' + trigger)
+        else:
+           logobj.write('Errore invio Ifttt a seguito di evento ' + trigger)
     else:
         # Error
         logobj.write('Canale di notifica non riconosciuto! [' + action + ']')
+        if DEBUG == 1:
+            print 'Nessun canale conosciuto. NON spedito [' + testoDaInviare +']'
         
 
 def pushover_service(pomsg):
@@ -607,14 +619,16 @@ def ifttt_service(trigger,iftext):
     try:
         # Lettura parametri IFT  da file di configurazione
         IFT_address = ET.parse(CFGFILENAME).find("channels/channel[@type='IFT']").attrib['address']
-        ckey = ET.parse(CFGFILENAME).find("channels/channel[@type='IFT']").attrib['ckey']
         if DEBUG == 1:
-            print trigger
+            print 'IFT_address: ' + IFT_address
+	    ckey = ET.parse(CFGFILENAME).find("channels/channel[@type='IFT']").attrib['ckey']
         url = IFT_address.format(e=trigger,k=ckey)
+        if DEBUG == 1:
+            print 'IFT Preparazione= trigger: ' + trigger + ' ckey ' + ckey + ' url ' + url
         payload = {'value1': iftext}
         return requests.post(url, data=payload)
     except:
         bOK = False
     finally:
         return bOK
-    
+
