@@ -228,7 +228,7 @@ def gestioneTermo(trigger):
                     if DEBUG == 1:
                         print 'TEMP: Sonda interna | Precedenti valori: sonda=[' + str(tidt[i]) + ']  temp=[' + str(tidt[i+1]) + ']'
                     if nzo == tidt[i]:
-                        if vt == tidt[i+1]:
+                        if vt == float(tidt[i+1]):
                             #temp della sonda invariata non modifico nulla
                             b_writeTemp = 0
                             exit
@@ -238,7 +238,7 @@ def gestioneTermo(trigger):
                                 print 'TEMP: ' + str(vt) + ' della sonda ' + str(nzo) + ' e cambiata.\' lettura precedente: ' + str(tidt[i+1])
                             trigger = 'TSZ' + str(nzo) 
                             b_writeTemp = 0
-                            tidt[i+1] = vt
+                            tidt[i+1] = str(vt)
                             writeTemFile(tidt)  
                 i = i + 1      
             # se non ho trovato la sonda nel file aggiorno il file
@@ -247,7 +247,7 @@ def gestioneTermo(trigger):
                     print 'TEMP: Sonda ' + str(nzo) + ' non presente nel file valore salvato: ' + str(vt)
                 trigger = 'TSZ' + str(nzo)  
                 tidt.append(nzo)
-                tidt.append(vt)
+                tidt.append(str(vt))
                 writeTemFile(tidt)             
         except Exception:
             if DEBUG == 1:
@@ -255,7 +255,7 @@ def gestioneTermo(trigger):
             # Nessun dato storicizzato, scrivi quello appena letto.
             tidt = []
             tidt.append(nzo)
-            tidt.append(vt)
+            tidt.append(str(vt))
             pickle.dump(tidt,open("tempdata.p", "wb"))
             #writeTemFile(tidt)
             # OK trigger
@@ -278,7 +278,7 @@ def gestioneEnergia(trigger):
         #print nto
         # Lettura dati energia
         vto = trigger.split('*')[4]
-        vto = vto[:-2]
+        vto = float(vto[:-2])
         #print vto
         # Trigger
         trigger = 'TE5' + str(nto)
@@ -608,10 +608,10 @@ def writeTemFile(tidt):
 def fixener(vto):
    # Adatta il formato di energia
    vto = vto[:-2]
-   vto = float(vto)
-   vto = round(vto/1000,2)
-   vto = str(vto)
-   vto = vto.replace(".",",")
+   vto = round(float(vto)/1000 , 2)
+   #vto = vto/1000,2)
+   #vto = str(vto)
+   #vto = vto.replace(".",",")
    return vto
 
 def ifttt_service(trigger,iftext):
