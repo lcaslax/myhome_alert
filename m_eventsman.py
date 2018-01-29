@@ -366,17 +366,6 @@ def invioNotifiche(data, channel, trigger, testoDaInviare, logobj):
             logobj.write('Eseguito/i comando/i OPEN preimpostato/i a seguito di evento ' + trigger)
         else:
             logobj.write('Errore esecuzione comando/i OPEN preimpostato/i a seguito di evento ' + trigger)
-    elif channel == 'OSE':
-        # ***********************************************************
-        # ** Open.sen.se channel                                   **
-        # ***********************************************************
-        osedata = data.split('|')
-        osefeedid = osedata[0]
-        osevalue = osedata[1]
-        if send_to_opensense(osefeedid,osevalue) == True:
-            logobj.write('Inviato dato a piattaforma Open.Sen.Se (feed id:' + osefeedid + ', valore:' + osevalue + ') a seguito di evento ' + trigger)
-        else:
-            logobj.write('Errore invio dato a piattaforma Open.Sen.Se (feed id:' + osefeedid + ', valore:' + osevalue + ') a seguito di evento ' + trigger)
     elif channel == 'BAT':
         # ***********************************************************
         # ** Batch channel                                         **
@@ -559,29 +548,6 @@ def opencmd_service(opencmd):
     except:
         bOK = False
     finally:
-        return bOK
-
-
-def send_to_opensense(feedId,value):
-    bOK = True
-    try:
-        # Send data to Open.Sen.Se platform
-        sat = ET.parse(CFGFILENAME).find("channels/channel[@type='OSE']").attrib['api_token']
-        datalist = [{"feed_id" : feedId, "value" : value},]
-        headers = {"sense_key": sat,"content-type": "application/json"}
-        conn = httplib.HTTPConnection("api.sen.se")
-        # format a POST request with JSON content
-        conn.request("POST", "/events/", simplejson.dumps(datalist), headers)
-        response = conn.getresponse()
-        if not response.reason == 'OK':
-            bOK = False
-        if DEBUG == 1:
-            print response.status, response.reason
-            print response.read()
-    except:
-        bOK = False
-    finally:
-        conn.close()
         return bOK
 
 
